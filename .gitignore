@@ -1,0 +1,16 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+TestResults/
+
+# Variables de entorno con secretos
+.env
+
+# SO
+.DS_Store
+Thumbs.db

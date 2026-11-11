@@ -1,0 +1,57 @@
+name: taskboard
+
+services:
+  # Contenedor 1: base de datos PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: taskboard-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - taskboard-net
+    # Sin "ports": la base solo es accesible desde la red interna de Docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Contenedor 2: API .NET 8 construida con nuestro Dockerfile
+  api:
+    build:
+      context: ./src/TaskBoard.Api
+      dockerfile: Dockerfile
+    image: taskboard-api:1.0
+    container_name: taskboard-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # "db" es el nombre del servicio: el DNS interno de Docker lo resuelve a la IP del contenedor
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - taskboard-net
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+networks:
+  taskboard-net:
+    name: taskboard-net
+    driver: bridge
+
+volumes:
+  pgdata:
+    name: taskboard-pgdata
